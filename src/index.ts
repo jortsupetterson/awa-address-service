@@ -1,5 +1,6 @@
 // src/index.ts
 import { WorkerEntrypoint } from 'cloudflare:workers';
+import { normalizeEmail } from './normalize.js';
 
 /**
  * Env bindings (tyypitetty selvästi).
@@ -62,6 +63,11 @@ export default {
 			// Instansoi RPC-palvelu vain dev-reititystä varten.
 			const rpc = new AwaAddressService(ctx, env);
 
+			if (url.pathname === '/email') {
+				const email = url.searchParams.get('email');
+				const normalized = normalizeEmail(String(email));
+				return Response.json({ result: normalized });
+			}
 			if (url.pathname === '/migration') {
 				const oldEmail = url.searchParams.get('old') ?? '';
 				const newEmail = url.searchParams.get('new') ?? '';
