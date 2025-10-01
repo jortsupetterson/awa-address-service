@@ -2,58 +2,56 @@
 import { WorkerEntrypoint } from 'cloudflare:workers';
 
 /**
- * Env bindings you plan to use later. Keep them typed even if unused in the shell.
+ * Env bindings (tyypitetty selvästi).
  */
 interface Env {
 	// Key ID bounds (top-level rotation model)
-	KID_CURRENT: string; // e.g. "2025Q4"
-	KID_OLDEST: string; // e.g. "2025Q2"
+	KID_CURRENT: string; // esim. "2025Q4"
+	KID_OLDEST: string; // esim. "2025Q2"
 
-	// Number of physical shards (string in wrangler vars; parse to int when needed)
+	// Fyysisten shardien määrä (wrangler vars -> string; parse int kun tarvitset)
 	NUM_PHYSICAL_SHARDS?: string;
 
-	// Secret Store binding (keys named: address_hmac_key.<KID>)
+	// Secret Store (avaimet: address_hmac_key.<KID>)
 	SECRETS?: { get(name: string): Promise<string | null> };
 
-	// D1 per pShard will be added later; for the shell we omit them.
-	// Example: ADDRESSES_SHARD_0: D1Database; ...
+	// D1 per pShard (lisäät myöhemmin):
+	// ADDRESSES_SHARD_0?: D1Database; ...
 
-	// Dev toggle: if "1", enable dev routes in fetch (off in deploy)
+	// Dev-tilan reititys (vain kehitykseen): "1" = dev-router päällä
 	DEV_ROUTING?: string;
 }
 
 /**
- * Internal RPC service. DO NOT default-export this class.
- * Keep these methods thin; real logic will land here later.
+ * Sisäinen RPC-palvelu. ÄLÄ default-exporttaa tätä.
+ * Varsinainen logiikka lisätään myöhemmin.
  */
 export class AwaAddressService extends WorkerEntrypoint<Env> {
 	/**
-	 * Input: raw user email (string).
-	 * Output: base64url-encoded 32-byte credentialsAddress (string).
+	 * Syöte: raaka email (string).
+	 * Tuotos: base64url-enkoodattu 32-tavuinen credentialsAddress (string).
 	 */
-	async getAddressFromEmail(email: string): Promise<string> {
-		// TODO: implement: canonicalize -> HMAC-128 (KID_CURRENT..KID_OLDEST lookup) -> select/insert -> return credentialsAddress
-		// Shell return value (deterministic placeholder for dev):
-		return 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'; // 43-char base64url for 32 bytes (placeholder)
+	async getAddressFromEmail(_email: string): Promise<string> {
+		// TODO: canonicalize -> HMAC-128 (KID_CURRENT..KID_OLDEST) -> select/insert -> credentialsAddress
+		return 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'; // placeholder (32B b64url)
 	}
 
 	/**
-	 * Migrate existing identity from oldEmail to newEmail.
-	 * Output: same credentialsAddress (base64url) after migration.
+	 * Migroi identiteetti vanhasta emailista uuteen.
+	 * Tuotos: sama credentialsAddress (base64url).
 	 */
-	async migrateAddressToNewEmail(oldEmail: string, newEmail: string): Promise<string> {
-		// TODO: implement: resolve old -> credentialsAddress, compute new index (KID_CURRENT), write new shard row -> return credentialsAddress
-		// Shell return value (placeholder):
-		return 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+	async migrateAddressToNewEmail(_oldEmail: string, _newEmail: string): Promise<string> {
+		// TODO: resolve old -> credentialsAddress, compute new index (KID_CURRENT), write new shard row -> return credentialsAddress
+		return 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'; // placeholder
 	}
 }
 
 /**
  * Default module worker export.
- * - In DEV mode (`env.DEV_ROUTING === "1"`), exposes two temporary routes for manual testing:
- *   • GET /?email=...                 -> calls AwaAddressService.getAddressFromEmail
- *   • GET /migration?old=...&new=...  -> calls AwaAddressService.migrateAddressToNewEmail
- * - In DEPLOY (no DEV_ROUTING), always returns cached 404 with long immutable cache.
+ * DEV-tilassa (env.DEV_ROUTING === "1") avaa väliaikaiset reitit testaukseen:
+ *   • GET /?email=...                 -> AwaAddressService.getAddressFromEmail
+ *   • GET /migration?old=...&new=...  -> AwaAddressService.migrateAddressToNewEmail
+ * Deployssa (ei DEV_ROUTING) aina long-cached 404.
  */
 export default {
 	async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -61,28 +59,28 @@ export default {
 		const isDev = env.DEV_ROUTING === '1';
 
 		if (isDev) {
-			// Instantiate the RPC service class on-demand for dev routing only.
-			const rpc = new AwaAddressService(env, ctx);
+			// Instansoi RPC-palvelu vain dev-reititystä varten.
+			const rpc = new AwaAddressService(ctx, env);
 
 			if (url.pathname === '/migration') {
 				const oldEmail = url.searchParams.get('old') ?? '';
 				const newEmail = url.searchParams.get('new') ?? '';
 				if (!oldEmail || !newEmail) {
-					return json({ error: 'missing query params: old, new' }, 400);
+					return Response.json({ error: 'missing query params: old, new' });
 				}
 				const credentialsAddress = await rpc.migrateAddressToNewEmail(oldEmail, newEmail);
-				return json({ credentialsAddress });
+				return Response.json({ credentialsAddress });
 			}
 
 			if (url.pathname === '/' && url.searchParams.has('email')) {
 				const email = url.searchParams.get('email') ?? '';
-				if (!email) return json({ error: 'missing query param: email' }, 400);
+				if (!email) Response.json({ error: 'missing query param: email' });
 				const credentialsAddress = await rpc.getAddressFromEmail(email);
-				return json({ credentialsAddress });
+				return Response.json({ credentialsAddress });
 			}
 		}
 
-		// Deployment behavior (and for any non-dev route): long-cached 404
+		// Deploy-käytös (ja kaikki muut reitit): pitkällä välimuistilla 404
 		const cached = await caches.default.match(request);
 		if (cached) return cached;
 
@@ -95,11 +93,3 @@ export default {
 		return response;
 	},
 };
-
-// --- tiny helper ---
-function json(payload: unknown, status = 200): Response {
-	return new Response(JSON.stringify(payload), {
-		status,
-		headers: { 'content-type': 'application/json; charset=utf-8' },
-	});
-}
