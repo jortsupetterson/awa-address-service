@@ -1,0 +1,26 @@
+PRAGMA foreign_keys = ON;
+
+-- 32-tavuinen credentials-osoite (BLOB). Base64url vain siirtomuoto reunoilla.
+CREATE TABLE IF NOT EXISTS credentials (
+  cred_pk   INTEGER PRIMARY KEY,
+  cred_addr BLOB NOT NULL UNIQUE,
+  CHECK(length(cred_addr) = 32)
+);
+
+-- Hakemisto per (vshard, pseudo_idx, kid). KID tekstinä "YYYYQ[1-4]".
+CREATE TABLE IF NOT EXISTS address_index_map (
+  vshard     INTEGER NOT NULL,   -- 0..1,048,575 (20 bittiä)
+  pseudo_idx BLOB    NOT NULL,   -- 16 B (HMAC trunc 128b)
+  kid        TEXT    NOT NULL,   -- esim. "2025Q4"
+  cred_pk    INTEGER NOT NULL,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  PRIMARY KEY (vshard, pseudo_idx, kid),
+  FOREIGN KEY (cred_pk) REFERENCES credentials(cred_pk) ON DELETE CASCADE,
+  CHECK(length(pseudo_idx) = 16),
+  CHECK(vshard BETWEEN 0 AND 1048575),
+  CHECK(kid GLOB '[0-9][0-9][0-9][0-9]Q[1-4]')
+) WITHOUT ROWID;
+
+-- Hakua tukeva indeksi: järjestys uusimmasta vanhimpaan tekstimuotoisella KID:llä.
+CREATE INDEX IF NOT EXISTS aim_lookup
+ON address_index_map (vshard, pseudo_idx, kid DESC);

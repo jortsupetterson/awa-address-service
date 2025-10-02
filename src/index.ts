@@ -1,18 +1,46 @@
 // src/index.ts
+
+declare global {
+	var te: TextEncoder;
+}
+
+globalThis.te = new TextEncoder();
+
 import { WorkerEntrypoint } from 'cloudflare:workers';
 import handleGetAddressFromEmail from './handlers/handleGetAddressFromEmail';
 import { normalizeEmail } from './utils/normalize';
+import byteCodec from './utils/byteCodec';
+import { sharder } from './utils/sharder';
+import { maccer } from './utils/maccer';
+import { mailer } from './utils/mailer';
+
+let __vMap: any;
+function getVmap(env: Env) {
+	if (__vMap) return __vMap;
+	const pShardNamesArr = env.PHYSICAL_SHARD_NAMES;
+	const vMapBuffer = new Uint32Array(1_048_576);
+	for (let slotIndex = 0; slotIndex < 1_048_576; slotIndex++) {
+		vMapBuffer[slotIndex] = slotIndex % pShardNamesArr.length;
+	}
+	__vMap = vMapBuffer;
+	return __vMap;
+}
 
 const utilityDedupCahe = {
 	normalizeEmail,
+	byteCodec,
+	sharder,
+	getVmap,
+	maccer,
+	mailer,
 };
 export class AwaAddressService extends WorkerEntrypoint<Env> {
 	/**
 	 * Syöte: raaka email (string).
 	 * Tuotos: base64url-enkoodattu 32-tavuinen credentialsAddress (string).
 	 */
-	async getAddressFromEmail(_email: string): Promise<string | null> {
-		return await handleGetAddressFromEmail({ email: _email, utils: utilityDedupCahe });
+	async getAddressFromEmail(_email: string): Promise<any> {
+		return await handleGetAddressFromEmail({ env: this.env, email: _email, utils: utilityDedupCahe });
 	}
 
 	/**
@@ -46,15 +74,15 @@ export default {
 				if (!oldEmail || !newEmail) {
 					return Response.json({ error: 'missing query params: old, new' });
 				}
-				const credentialsAddress = await rpc.migrateAddressToNewEmail(oldEmail, newEmail);
-				return Response.json({ credentialsAddress });
+				const result = await rpc.migrateAddressToNewEmail(oldEmail, newEmail);
+				return Response.json(result);
 			}
 
 			if (url.pathname === '/' && url.searchParams.has('email')) {
 				const email = url.searchParams.get('email') ?? '';
 				if (!email) Response.json({ error: 'missing query param: email' });
-				const credentialsAddress = await rpc.getAddressFromEmail(email);
-				return Response.json({ credentialsAddress });
+				const result = await rpc.getAddressFromEmail(email);
+				return Response.json({ result });
 			}
 		}
 

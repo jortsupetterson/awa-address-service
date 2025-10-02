@@ -4,6 +4,7 @@
  */
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
+	"account_id": "610496ac00ef9a268f611d5a29234d53",
 	"name": "awa-address-service",
 	"main": "src/index.ts",
 	"compatibility_date": "2025-10-01",
@@ -11,16 +12,63 @@
 		"enabled": true
 	},
 	"placement": { "mode": "smart" },
+	"minify": true,
 
 	"vars": {
 		"DEV_ROUTING": "1",
 		"KID_CURRENT": "2025Q4",
-		"KID_OLDEST": "2025Q4"
-	}
-	/**
-	 * Note: Use secrets to store sensitive data.
-	 * https://developers.cloudflare.com/workers/configuration/secrets/
-	 */
+		"LEGACY_KIDS": ["2025Q2", "2025Q3"],
+		"PHYSICAL_SHARD_NAMES": ["0000000", "0000001", "0000002"],
+		"ACS_EMAIL_ENDPOINT": "https://communications-client.europe.communication.azure.com/emails:send?api-version=2025-09-01"
+	},
+	"kv_namespaces": [
+		{
+			"binding": "KV_CACHE",
+			"id": "a0336613efda4f138439798c4df9fa25",
+			"preview_id": "8086bce4f4724e9a89d3c02334b6611e",
+			"remote": true
+		}
+	],
+	"secrets_store_secrets": [
+		{
+			"binding": "KEY_2025Q4",
+			"secret_name": "KEY_2025Q4",
+			"store_id": "d218845e95eb47b3ba53bf34577cb94f"
+		},
+		{
+			"binding": "KEY_2025Q3",
+			"secret_name": "KEY_2025Q3",
+			"store_id": "d218845e95eb47b3ba53bf34577cb94f"
+		},
+		{
+			"binding": "KEY_2025Q2",
+			"secret_name": "KEY_2025Q2",
+			"store_id": "d218845e95eb47b3ba53bf34577cb94f"
+		},
+		{
+			"binding": "ACS_ACCESS_KEY",
+			"secret_name": "ACS_ACCESS_KEY",
+			"store_id": "d218845e95eb47b3ba53bf34577cb94f"
+		}
+	],
+	"d1_databases": [
+		{
+			"binding": "AWA_ADDRESSES_D1_0000000",
+			"database_id": "ae6d4241-901d-4395-aa5c-2307fefda078",
+			"remote": true
+		},
+		{
+			"binding": "AWA_ADDRESSES_D1_0000001",
+			"database_id": "789773c5-cc6c-4b95-b913-ff3e290fa9e2",
+			"remote": true
+		},
+		{
+			"binding": "AWA_ADDRESSES_D1_0000002",
+			"database_id": "1b2b65b0-1d5a-4911-a2a6-5cd8d28b0cfc",
+			"remote": true
+		}
+	]
+
 	/**
 	 * Static Assets
 	 * https://developers.cloudflare.com/workers/static-assets/binding/
