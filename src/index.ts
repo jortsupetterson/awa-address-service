@@ -1,40 +1,18 @@
 // src/index.ts
 import { WorkerEntrypoint } from 'cloudflare:workers';
-import { normalizeEmail } from './normalize.js';
+import handleGetAddressFromEmail from './handlers/handleGetAddressFromEmail';
+import { normalizeEmail } from './utils/normalize';
 
-/**
- * Env bindings (tyypitetty selvästi).
- */
-interface Env {
-	// Key ID bounds (top-level rotation model)
-	KID_CURRENT: string; // esim. "2025Q4"
-	KID_OLDEST: string; // esim. "2025Q2"
-
-	// Fyysisten shardien määrä (wrangler vars -> string; parse int kun tarvitset)
-	NUM_PHYSICAL_SHARDS?: string;
-
-	// Secret Store (avaimet: address_hmac_key.<KID>)
-	SECRETS?: { get(name: string): Promise<string | null> };
-
-	// D1 per pShard (lisäät myöhemmin):
-	// ADDRESSES_SHARD_0?: D1Database; ...
-
-	// Dev-tilan reititys (vain kehitykseen): "1" = dev-router päällä
-	DEV_ROUTING?: string;
-}
-
-/**
- * Sisäinen RPC-palvelu. ÄLÄ default-exporttaa tätä.
- * Varsinainen logiikka lisätään myöhemmin.
- */
+const utilityDedupCahe = {
+	normalizeEmail,
+};
 export class AwaAddressService extends WorkerEntrypoint<Env> {
 	/**
 	 * Syöte: raaka email (string).
 	 * Tuotos: base64url-enkoodattu 32-tavuinen credentialsAddress (string).
 	 */
-	async getAddressFromEmail(_email: string): Promise<string> {
-		// TODO: canonicalize -> HMAC-128 (KID_CURRENT..KID_OLDEST) -> select/insert -> credentialsAddress
-		return 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'; // placeholder (32B b64url)
+	async getAddressFromEmail(_email: string): Promise<string | null> {
+		return await handleGetAddressFromEmail({ email: _email, utils: utilityDedupCahe });
 	}
 
 	/**
@@ -62,12 +40,6 @@ export default {
 		if (isDev) {
 			// Instansoi RPC-palvelu vain dev-reititystä varten.
 			const rpc = new AwaAddressService(ctx, env);
-
-			if (url.pathname === '/email') {
-				const email = url.searchParams.get('email');
-				const normalized = normalizeEmail(String(email));
-				return Response.json({ result: normalized });
-			}
 			if (url.pathname === '/migration') {
 				const oldEmail = url.searchParams.get('old') ?? '';
 				const newEmail = url.searchParams.get('new') ?? '';
