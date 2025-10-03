@@ -40,7 +40,7 @@ export class AwaAddressService extends WorkerEntrypoint<Env> {
 	 * Tuotos: base64url-enkoodattu 32-tavuinen credentialsAddress (string).
 	 */
 	async getAddressFromEmail(_email: string): Promise<any> {
-		return await handleGetAddressFromEmail({ env: this.env, email: _email, utils: utilityDedupCahe });
+		return await handleGetAddressFromEmail({ env: this.env, ctx: this.ctx, email: _email, utils: utilityDedupCahe });
 	}
 
 	/**

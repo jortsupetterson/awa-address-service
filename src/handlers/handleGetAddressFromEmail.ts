@@ -1,4 +1,16 @@
-export default async function handleGetAddressFromEmail({ env, utils, email }: { env: Env; utils: any; email: string }): Promise<any> {
+import { ExecutionContext } from '@cloudflare/workers-types';
+
+export default async function handleGetAddressFromEmail({
+	env,
+	ctx,
+	utils,
+	email,
+}: {
+	env: Env;
+	ctx: ExecutionContext;
+	utils: any;
+	email: string;
+}): Promise<any> {
 	const emailResult = utils.normalizeEmail(email);
 	const emailBytes = te.encode(emailResult.normalized);
 	const emailHashBuffer = await crypto.subtle.digest('SHA-256', emailBytes);
@@ -40,29 +52,10 @@ export default async function handleGetAddressFromEmail({ env, utils, email }: {
 
 	if (row?.cred) {
 		const b = new Uint8Array(row.cred);
-		return { credentialsAddress: utils.byteCodec.toBase64url('bytes', b) };
+		const out = utils.byteCodec.toBase64url('bytes', b);
+		ctx.waitUntil(env.KV_CACHE.put(currentMacKey, out));
+		return { credentialsAddress: out };
 	}
 
-	const newCredBytes = utils.byteCodec.getBytes(32);
-	await db.batch([
-		db.prepare(`INSERT OR IGNORE INTO credentials (cred_addr) VALUES (?)`).bind(newCredBytes),
-		db
-			.prepare(
-				`INSERT OR IGNORE INTO address_index_map (vshard, pseudo_idx, kid, cred_pk)
-			 SELECT ?, ?, ?, cred_pk FROM credentials WHERE cred_addr = ?`
-			)
-			.bind(vShard, currentMacBytes, env.KID_CURRENT, newCredBytes),
-	]);
-
-	const out = utils.byteCodec.toBase64url('bytes', newCredBytes);
-	await env.KV_CACHE.put(currentMacKey, out);
-	const mailRes = await utils.mailer.send(env, {
-		senderAddress: 'DoNotReply@notifications.authentication.center',
-		recipients: { to: [{ address: emailResult.normalized }] },
-		content: { subject: 'Olet tunnistautumassa palveluun', plainText: 'Kertakäyttökoodisi 123456' },
-		replyTo: [{ address: 'web.authentication.center@gmail.com' }],
-		userEngagementTrackingDisabled: true,
-	});
-
-	return { credentialsAddress: out, result: mailRes };
+	return null;
 }

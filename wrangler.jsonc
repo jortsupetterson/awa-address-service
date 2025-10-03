@@ -15,7 +15,7 @@
 	"minify": true,
 
 	"vars": {
-		"DEV_ROUTING": "1",
+		"DEV_ROUTING": "0",
 		"KID_CURRENT": "2025Q4",
 		"LEGACY_KIDS": ["2025Q2", "2025Q3"],
 		"PHYSICAL_SHARD_NAMES": ["0000000", "0000001", "0000002"],
